@@ -1,0 +1,41 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "SakBol — медицинский ассистент для семьи" } = Astro.props;
+---
+
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+    <style is:global>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; color: #0f172a; }
+      a { color: #229ED9; }
+      .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+      header.nav { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #e2e8f0; }
+      header.nav .brand { font-weight: 700; color: #004253; font-size: 18px; }
+      header.nav nav a { margin-left: 16px; color: #475569; text-decoration: none; font-size: 14px; }
+      footer.foot { padding: 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; margin-top: 64px; }
+    </style>
+    <header class="nav">
+      <span class="brand">SakBol</span>
+      <nav>
+        <a href="/">Главная</a>
+        <a href="/privacy">Политика</a>
+        <a href="/terms">Соглашение</a>
+        <a href="/support">Поддержка</a>
+      </nav>
+    </header>
+  </body>
+</html>

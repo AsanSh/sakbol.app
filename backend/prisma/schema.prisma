@@ -1,0 +1,432 @@
+// SakBol v2 — clean schema (no Telegram fields).
+// Любое изменение → `npx prisma migrate dev --name <description>`.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Страна выдачи идентификатора (ИИН/ПИН/ПИНФЛ/СНИЛС) — формат ввода и расчёт якоря.
+enum SubjectIdCountry {
+  KG
+  KZ
+  UZ
+  RU
+}
+
+enum FamilyRole {
+  ADMIN
+  MEMBER
+}
+
+enum ManagedRelationRole {
+  CHILD
+  ELDER
+  OTHER
+  SPOUSE
+}
+
+enum BiologicalSex {
+  UNKNOWN
+  MALE
+  FEMALE
+}
+
+enum HealthRecordKind {
+  LAB_ANALYSIS
+  NOTE
+  OTHER
+}
+
+enum HealthDocumentCategory {
+  ANALYSIS
+  DISCHARGE_SUMMARY
+  PROTOCOL
+  PRESCRIPTION
+  CONTRACT
+  OTHER
+}
+
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+}
+
+enum MedicineRequestStatus {
+  OPEN
+  CLOSED
+  EXPIRED
+}
+
+enum OtpChannel {
+  EMAIL
+  PHONE
+}
+
+enum DevicePlatform {
+  ANDROID
+  IOS
+  WEB
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Family / Profile
+// ─────────────────────────────────────────────────────────────────────────
+
+model Family {
+  id        String        @id @default(cuid())
+  name      String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  profiles  Profile[]
+  plan      Subscription?
+}
+
+model Profile {
+  id           String  @id @default(cuid())
+  familyId     String
+  family       Family  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  displayName  String
+  email        String? @unique
+  phoneE164    String? @unique
+  passwordHash String?
+  avatarUrl    String?
+
+  /// HMAC(PIN, PIN_ANCHOR_PEPPER). Сырого ПИН в БД нет.
+  pinAnchor        String?           @unique
+  subjectIdCountry SubjectIdCountry?
+
+  isManaged   Boolean              @default(false)
+  familyRole  FamilyRole           @default(MEMBER)
+  managedRole ManagedRelationRole?
+
+  dateOfBirth   DateTime?
+  biologicalSex BiologicalSex @default(UNKNOWN)
+
+  heightCm  Float?
+  weightKg  Float?
+  bloodType String?
+
+  medCardIsDoctor      Boolean @default(false)
+  medCardDoctorNote    String?
+  medCardIsCaregiver   Boolean @default(false)
+  medCardCaregiverNote String?
+
+  /// Внешний идентификатор для автоматизаций (ADesk / CRM).
+  adeskId String? @unique
+
+  healthRecords    HealthRecord[]
+  healthDocuments  HealthDocument[]
+  medications      Medication[]
+  grantedAccesses  ProfileAccess[]  @relation("AccessGrantee")
+  sharedAccesses   ProfileAccess[]  @relation("AccessSource")
+  medicineRequests MedicineRequest[]
+  ownedPharmacy    Pharmacy?        @relation("PharmacyOwner")
+  refreshTokens    RefreshToken[]
+  deviceTokens     DeviceToken[]
+  passwordResets   PasswordResetToken[]
+  storageObjects   StorageObject[]
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([familyId])
+  @@index([familyId, familyRole])
+  @@index([deletedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Auth
+// ─────────────────────────────────────────────────────────────────────────
+
+model RefreshToken {
+  id          String   @id @default(cuid())
+  profileId   String
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tokenHash   String   @unique
+  deviceLabel String?
+  userAgent   String?
+  ipAddress   String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([profileId])
+  @@index([expiresAt])
+}
+
+model OtpChallenge {
+  id         String     @id @default(cuid())
+  channel    OtpChannel
+  /// email или E.164 номер.
+  recipient  String
+  codeHash   String
+  attempts   Int        @default(0)
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime   @default(now())
+
+  @@index([channel, recipient, createdAt])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  profileId  String
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([profileId])
+  @@index([expiresAt])
+}
+
+model DeviceToken {
+  id         String         @id @default(cuid())
+  profileId  String
+  profile    Profile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  platform   DevicePlatform
+  fcmToken   String         @unique
+  lastSeenAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+
+  @@index([profileId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Health data
+// ─────────────────────────────────────────────────────────────────────────
+
+model HealthRecord {
+  id        String           @id @default(cuid())
+  profileId String
+  profile   Profile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  /// Технические метаданные (файл, парсер). Клинические значения — в metrics.
+  data      Json
+  isPrivate Boolean          @default(false)
+  kind      HealthRecordKind @default(OTHER)
+  title     String?
+
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  shares    ShareToken[]
+  metrics   HealthRecordMetrics?
+
+  @@index([profileId])
+  @@index([profileId, kind])
+}
+
+model HealthRecordMetrics {
+  id             String       @id @default(cuid())
+  healthRecordId String       @unique
+  healthRecord   HealthRecord @relation(fields: [healthRecordId], references: [id], onDelete: Cascade)
+  payload        Json
+
+  @@index([healthRecordId])
+}
+
+model HealthDocument {
+  id        String                 @id
+  profileId String
+  profile   Profile                @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  title    String
+  category HealthDocumentCategory @default(OTHER)
+  /// Ссылка на объект в MinIO (StorageObject.id) — файл скачивается через presigned URL.
+  storageObjectId String?
+  documentDate    DateTime?
+  mimeType        String?
+  bytes           Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+  @@index([profileId, category])
+  @@index([createdAt])
+}
+
+model Medication {
+  id         String   @id @default(cuid())
+  profileId  String
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name       String
+  dosage     String
+  timeOfDay  String
+  takenToday Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([profileId, timeOfDay])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Storage (MinIO objects)
+// ─────────────────────────────────────────────────────────────────────────
+
+model StorageObject {
+  id            String   @id @default(cuid())
+  bucket        String
+  objectKey     String   @unique
+  mimeType      String
+  bytes         Int
+  sha256        String?
+  ownerProfileId String?
+  ownerProfile  Profile? @relation(fields: [ownerProfileId], references: [id], onDelete: SetNull)
+  isPublic      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([ownerProfileId])
+  @@index([bucket, objectKey])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Sharing (ProfileAccess)
+// ─────────────────────────────────────────────────────────────────────────
+
+model ProfileAccess {
+  id               String  @id @default(cuid())
+
+  sourceProfileId  String
+  sourceProfile    Profile @relation("AccessSource", fields: [sourceProfileId], references: [id], onDelete: Cascade)
+
+  granteeProfileId String?
+  grantee          Profile? @relation("AccessGrantee", fields: [granteeProfileId], references: [id], onDelete: SetNull)
+
+  /// До регистрации гостя — ждём вход с этим email/телефоном.
+  pendingEmail     String?
+  pendingPhoneE164 String?
+
+  canWrite        Boolean   @default(true)
+  inviteToken     String    @unique @default(cuid())
+  inviteCode9     String?   @unique
+  inviteExpiresAt DateTime?
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([sourceProfileId])
+  @@index([granteeProfileId])
+  @@index([inviteCode9])
+}
+
+model ShareToken {
+  id             String       @id @default(cuid())
+  token          String       @unique
+  healthRecordId String
+  healthRecord   HealthRecord @relation(fields: [healthRecordId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+
+  @@index([token, expiresAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Subscription / Pharmacy / Medicine requests
+// ─────────────────────────────────────────────────────────────────────────
+
+model Subscription {
+  id        String           @id @default(cuid())
+  familyId  String           @unique
+  family    Family           @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  tier      SubscriptionTier @default(FREE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+model Pharmacy {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  city      String   @default("Бишкек")
+  phones    String[]
+  latitude  Float?
+  longitude Float?
+  workHours String?
+  logoUrl   String?
+
+  isVerified Boolean @default(false)
+  isActive   Boolean @default(true)
+
+  ownerProfileId String?  @unique
+  ownerProfile   Profile? @relation("PharmacyOwner", fields: [ownerProfileId], references: [id], onDelete: SetNull)
+
+  responses MedicineRequestResponse[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model MedicineRequest {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  medicineName String
+  note         String?
+  imageUrl     String?
+
+  status    MedicineRequestStatus @default(OPEN)
+  expiresAt DateTime
+
+  responses MedicineRequestResponse[]
+
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([profileId])
+}
+
+model MedicineRequestResponse {
+  id        String @id @default(cuid())
+  requestId String
+  request   MedicineRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  pharmacyId String
+  pharmacy   Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  inStock    Boolean   @default(true)
+  price      Float?
+  priceUnit  String?   @default("сом")
+  note       String?
+  notifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([requestId, pharmacyId])
+  @@index([requestId])
+  @@index([pharmacyId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Audit log (важно для медданных и совместного доступа)
+// ─────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  actorProfileId  String?
+  action          String
+  targetType      String?
+  targetId        String?
+  ipAddress       String?
+  userAgent       String?
+  meta            Json?
+  createdAt       DateTime @default(now())
+
+  @@index([actorProfileId, createdAt])
+  @@index([targetType, targetId])
+}

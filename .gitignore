@@ -1,0 +1,32 @@
+node_modules/
+.next/
+dist/
+build/
+.env
+.env.local
+.env.production
+.DS_Store
+*.log
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+ios/Flutter/Generated.xcconfig
+android/local.properties
+android/.gradle/
+
+# Astro
+.astro/
+
+# Docker volumes (local)
+infra/data/
+
+# IDE
+.idea/
+.vscode/
+*.swp

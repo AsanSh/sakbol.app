@@ -1,0 +1,41 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="SakBol — медицинский ассистент для семьи">
+  <main class="container">
+    <section style="padding: 64px 0; text-align: center;">
+      <h1 style="font-size: 48px; color: #004253; margin: 0 0 16px;">SakBol</h1>
+      <p style="font-size: 20px; color: #475569; max-width: 560px; margin: 0 auto 32px;">
+        Все анализы, документы и динамика здоровья всей семьи в одном приложении. На любом устройстве.
+      </p>
+      <div style="display: inline-flex; gap: 12px;">
+        <a
+          href="https://app.sakbol.app"
+          style="background: #004253; color: white; padding: 14px 24px; border-radius: 12px; text-decoration: none; font-weight: 600;"
+        >
+          Открыть веб-кабинет
+        </a>
+        <a
+          href="#download"
+          style="background: white; color: #004253; border: 2px solid #004253; padding: 12px 22px; border-radius: 12px; text-decoration: none; font-weight: 600;"
+        >
+          Скачать для Android
+        </a>
+      </div>
+    </section>
+
+    <section style="padding: 48px 0;">
+      <h2 style="color: #004253;">Что внутри</h2>
+      <ul style="font-size: 16px; color: #334155; line-height: 1.8;">
+        <li>📋 Все анализы и медицинские документы в одном месте</li>
+        <li>📈 Динамика показателей со временем</li>
+        <li>👨‍👩‍👧‍👦 Семейный доступ — добавьте детей, пожилых родственников</li>
+        <li>🤖 ИИ-разбор анализов и документов (Gemini)</li>
+        <li>💊 Поиск лекарств в аптеках вашего города</li>
+      </ul>
+    </section>
+
+    <footer class="foot">© {new Date().getFullYear()} SakBol</footer>
+  </main>
+</Layout>
