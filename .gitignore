@@ -26,6 +26,11 @@ android/.gradle/
 # Docker volumes (local)
 infra/data/
 
+# Firebase / Google service accounts (секретные ключи)
+secrets/
+**/firebase-service-account*.json
+**/serviceAccount*.json
+
 # IDE
 .idea/
 .vscode/

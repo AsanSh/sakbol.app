@@ -1,71 +1,143 @@
-# Setup: Firebase Cloud Messaging (push)
+# Setup: Firebase Cloud Messaging (push) + FlutterFire
 
-FCM нужен для **push-уведомлений** на Android. Бесплатно без лимитов.
+FCM нужен для **push-уведомлений**. Бесплатно без лимитов (Spark plan хватает).
 
-## 1. Создать проект Firebase
+> **TL;DR.** В Firebase Console жмите **Flutter** (не Android, не iOS отдельно). FlutterFire CLI зарегистрирует Android + Web (+ iOS) одним проходом и сам положит конфиги в нужные папки. Не придётся вручную скачивать `google-services.json` и править `build.gradle`.
 
-1. https://console.firebase.google.com/ → **Add project**.
-2. Имя: `sakbol-prod` (один общий проект для prod и dev — можно завести отдельные).
-3. Disable Google Analytics (на MVP не нужен; включить позже).
-4. **Create project**.
+## Шаг 1 — Проект Firebase уже создан
 
-## 2. Добавить Android-приложение
+У вас уже есть проект `Sakbol` (Spark plan) — со скриншота.
 
-1. В консоли проекта → **Project Overview** → ⚙️ → **Project settings** → **Your apps** → нажать **Android**.
-2. **Android package name:** `app.sakbol`
-3. **App nickname:** `SakBol Android`
-4. **Debug signing certificate SHA-1:** пока пропустить (понадобится для google-sign-in позже).
-5. **Register app**.
-6. **Скачать `google-services.json`** → этот файл положить в:
-   ```
-   app/android/app/google-services.json
-   ```
-   *(директория появится после `flutter create .` в каталоге `app/`)*
+## Шаг 2 — В консоли нажмите Flutter
 
-> **Этот файл коммитим в репозиторий.** Он не секретный (содержит публичные ID), просто привязка приложения к проекту.
+На экране "Get started by adding Firebase to your app" вы видите иконки платформ:
 
-## 3. (Позже) Добавить iOS-приложение
+> 🍎 iOS+  &nbsp;&nbsp; 🤖 Android  &nbsp;&nbsp; </> Web  &nbsp;&nbsp; ▲ Unity  &nbsp;&nbsp; **🟦 Flutter** ← жмёте эту
 
-Когда дойдём до iOS:
-- В Firebase → **Add app** → **iOS**.
-- **Bundle ID:** `app.sakbol`.
-- Скачать `GoogleService-Info.plist` → в `app/ios/Runner/GoogleService-Info.plist`.
+Откроется мастер «Add Firebase to your Flutter app». Не закрывайте — мастер просто показывает команды, которые мы выполним ниже.
 
-## 4. Backend: сервисный аккаунт для отправки
+## Шаг 3 — Установить FlutterFire CLI на свою машину
 
-Чтобы NestJS мог слать push:
-
-1. Firebase Console → **Project settings** → **Service accounts** → **Generate new private key**.
-2. Скачается JSON-файл с приватным ключом.
-3. На VPS положите его как `/opt/sakbol-v2/secrets/firebase-service-account.json` (права `600`).
-4. В backend `.env`:
-   ```env
-   FCM_SERVICE_ACCOUNT_PATH=/opt/sakbol-v2/secrets/firebase-service-account.json
-   FCM_PROJECT_ID=sakbol-prod
-   ```
-
-> Этот JSON секретный — НЕ коммитим. Тоже добавлен в `.gitignore`.
-
-## 5. Flutter: подключить FCM
-
-В Фазе 2 добавим в `pubspec.yaml`:
-```yaml
-firebase_core: ^3.6.0
-firebase_messaging: ^15.1.3
-```
-
-И инициализируем в `main.dart`. Подробности — в задаче Фазы 2.
-
-## Проверка
-
-После Фазы 2:
+В терминале (один раз для всего компьютера):
 
 ```bash
-# В Flutter-app зайти под тест-пользователем → /me/devices зарегистрируется автоматически.
-# В backend (или вручную через Firebase Console → Cloud Messaging → New campaign):
+# Установить Firebase CLI (для аутентификации в Google)
+brew install firebase-cli
+firebase login
+
+# Установить flutterfire_cli (Dart-инструмент)
+dart pub global activate flutterfire_cli
+
+# Добавить ~/.pub-cache/bin в PATH (если ещё нет)
+echo 'export PATH="$PATH:$HOME/.pub-cache/bin"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+## Шаг 4 — Сначала создаём Flutter-проект, потом подключаем Firebase
+
+В каталоге `app/` Flutter-проект ещё не был полностью инициализирован (есть только `lib/main.dart` и `pubspec.yaml`). Запустите:
+
+```bash
+cd /Users/asans/Desktop/sakbol/app
+
+# Сгенерировать платформенные папки (один раз)
+flutter create . \
+  --platforms=android,web,ios \
+  --org=app.sakbol \
+  --project-name=sakbol_app
+
+flutter pub get
+```
+
+> `--org=app.sakbol` → итоговый Android `applicationId` будет `app.sakbol.sakbol_app`. Это нужно учитывать в Firebase (см. ниже).
+
+После этого добавьте FCM-пакеты в `pubspec.yaml`:
+
+```yaml
+dependencies:
+  firebase_core: ^3.6.0
+  firebase_messaging: ^15.1.3
+```
+
+```bash
+flutter pub get
+```
+
+## Шаг 5 — Подключить проект Firebase к коду
+
+```bash
+cd /Users/asans/Desktop/sakbol/app
+
+flutterfire configure
+```
+
+Мастер задаст вопросы:
+
+1. **Select a Firebase project** → выберите `Sakbol`.
+2. **Which platforms?** → отметьте **android** и **web**. iOS можно отметить тоже — данные сохранятся, использовать начнём позже. macOS / Linux / Windows — снимите.
+3. **Android application id?** → подтвердить `app.sakbol.sakbol_app` (или ввести другой — тогда Firebase создаст приложение с этим ID).
+
+CLI автоматически:
+- Зарегистрирует выбранные платформы в проекте Firebase.
+- Положит `android/app/google-services.json` (для FCM на Android).
+- Положит `ios/Runner/GoogleService-Info.plist` (если выбрали iOS).
+- Сгенерирует `lib/firebase_options.dart` с web-конфигом.
+
+Эти файлы коммитим в репозиторий — они не секретные.
+
+## Шаг 6 — Инициализировать Firebase в `main.dart`
+
+В `lib/main.dart`:
+
+```dart
+import "package:firebase_core/firebase_core.dart";
+import "firebase_options.dart";
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  runApp(const ProviderScope(child: SakbolApp()));
+}
+```
+
+## Шаг 7 — Сервисный аккаунт для отправки push с backend
+
+Чтобы NestJS мог отправлять push, нужен сервисный аккаунт:
+
+1. Firebase Console → ⚙️ **Project settings** → **Service accounts** → **Generate new private key**.
+2. Скачается JSON-файл.
+3. На VPS положите как `/opt/sakbol-v2/secrets/firebase-service-account.json` (`chmod 600`).
+4. В `backend/.env`:
+   ```env
+   FCM_SERVICE_ACCOUNT_PATH=/opt/sakbol-v2/secrets/firebase-service-account.json
+   FCM_PROJECT_ID=sakbol-xxxxx     # точный ID можно скопировать из Project settings → General
+   ```
+
+> Этот JSON секретный — **НЕ коммитим**. Он уже в `.gitignore` через паттерн `secrets/`.
+
+## Шаг 8 — Проверка (после Phase 2 Flutter-MVP)
+
+```bash
+# Войти под тест-пользователем во Flutter-app
+# Endpoint /v1/me/devices зарегистрирует FCM-токен автоматически.
+
+# Из Firebase Console → Cloud Messaging → Send test message
+# либо через backend (Phase 2):
 curl -X POST https://api-v2.adventory.store/v1/admin/push/test \
   -H 'Authorization: Bearer <admin-token>' \
   -d '{"profileId":"...","title":"Тест","body":"Push работает!"}'
 ```
 
-Уведомление должно прийти на устройство за несколько секунд.
+Уведомление придёт за несколько секунд.
+
+---
+
+## Когда добавить iOS-приложение позже
+
+Если сейчас выбрали только Android+Web:
+```bash
+flutterfire configure --platforms=ios
+```
+Один проход — данные дописываются, не перезатираются.
