@@ -24,7 +24,7 @@ dependencies:
   go_router: ^14.6.1
 
   # Models / codegen
-  freezed_annotation: ^2.4.4
+  freezed_annotation: ^3.0.0
   json_annotation: ^4.9.0
 
   # Storage
@@ -47,8 +47,8 @@ dependencies:
   mobile_scanner: ^5.2.3
   qr_flutter: ^4.1.0
 
-  # i18n
-  intl: ^0.19.0
+  # i18n (pinned by flutter_localizations on Flutter 3.44+)
+  intl: ^0.20.2
 
   # Utilities
   collection: ^1.18.0
@@ -64,11 +64,11 @@ dev_dependencies:
     sdk: flutter
 
   build_runner: ^2.4.13
-  freezed: ^2.5.7
+  freezed: ^3.0.0
   json_serializable: ^6.8.0
-  riverpod_generator: ^2.4.3
-  custom_lint: ^0.6.7
-  riverpod_lint: ^2.3.13
+  riverpod_generator: ^2.6.5
+  custom_lint: ^0.7.3
+  riverpod_lint: ^2.6.5
 
   flutter_lints: ^5.0.0
   mocktail: ^1.0.4
